@@ -16,6 +16,10 @@ export function loadEnv(path = ".env"): void {
     ) {
       value = value.slice(1, -1);
     }
-    if (process.env[key] === undefined) process.env[key] = value;
+    const override =
+      key === "OPENAI_API_KEY" ||
+      key === "OPENAI_BASE_URL" ||
+      key === "OPENAI_MODEL";
+    if (override || process.env[key] === undefined) process.env[key] = value;
   }
 }
