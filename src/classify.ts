@@ -69,30 +69,23 @@ export function resourceTypeOf(args: {
     .toLowerCase()
     .replace(/_/g, " ");
 
+  if (snake === "issue_number") return "issue";
+  if (snake === "pull_number" || snake === "pull_request_id") return "pull_request";
+  if (snake === "comment_number") return "discussion_comment";
+  if (snake === "milestone_number") return "milestone";
+  if (snake === "migration_id") return "migration";
+
   if (/issue comment/.test(text) || slug.includes("ISSUE_COMMENT")) return "issue_comment";
   if (/commit comment/.test(text) || slug.includes("COMMIT_COMMENT")) return "commit_comment";
   if (/gist comment/.test(text) || /GIST.*COMMENT/.test(slug)) return "gist_comment";
   if (/review comment/.test(text) || slug.includes("REVIEW_COMMENT")) return "review_comment";
-  if (
-    snake === "comment_number" ||
-    /discussion comment/.test(text) ||
-    slug.includes("DISCUSSION_COMMENT")
-  ) {
+  if (/discussion comment/.test(text) || slug.includes("DISCUSSION_COMMENT")) {
     return "discussion_comment";
   }
-  if (
-    snake === "pull_number" ||
-    snake === "pull_request_id" ||
-    /pull request/.test(text) ||
-    slug.includes("PULL_REQUEST")
-  ) {
-    return "pull_request";
-  }
-  if (/milestone/.test(text) || snake === "milestone_number") return "milestone";
+  if (/pull request/.test(text) || slug.includes("PULL_REQUEST")) return "pull_request";
+  if (/milestone/.test(text)) return "milestone";
   if (/discussion/.test(text) && /number/.test(snake)) return "discussion";
-  if (snake === "issue_number" || /\bissue\b/.test(text) || slug.includes("_ISSUE")) {
-    return "issue";
-  }
+  if (/\bissue\b/.test(text) || /(?:^|_)ISSUE(?:_|$)/.test(slug)) return "issue";
   if (/migration/.test(text) || snake.startsWith("migration")) return "migration";
   if (snake === "file_sha" || /\bblob\b/.test(text)) return "blob";
   if (
@@ -102,6 +95,17 @@ export function resourceTypeOf(args: {
     /\bcommit sha\b/.test(text)
   ) {
     return "commit";
+  }
+
+  if (snake === "id" || snake === "number") {
+    const ofThe =
+      /(?:identifier|id|number) (?:of|for) (?:the )?([a-z0-9 ]+?)(?:\.|$)/i.exec(
+        args.description,
+      );
+    if (ofThe) {
+      const token = ofThe[1].trim().replace(/\s+/g, "_").replace(/s$/, "");
+      if (token) return snakeName(token);
+    }
   }
 
   const base = snake.replace(/_(id|number|sha|token|ref|slug)$/, "");

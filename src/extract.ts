@@ -1,4 +1,25 @@
-import type { Field, RawTool } from "./types.ts";
+import { slugOf } from "./catalog.ts";
+import { serviceOf } from "./service.ts";
+import type { Field, NormalizedTool, RawTool } from "./types.ts";
+
+export function normalizeTool(tool: RawTool): NormalizedTool | undefined {
+  const slug = slugOf(tool);
+  if (!slug) return undefined;
+  const { required, all } = extractInputs(tool);
+  return {
+    slug,
+    service: serviceOf(tool, slug),
+    isDeprecated: !!tool.isDeprecated,
+    tags: Array.isArray(tool.tags) ? tool.tags : [],
+    requiredInputs: required,
+    allInputs: all,
+    primaryOutputs: extractPrimaryOutputs(tool),
+  };
+}
+
+export function normalizeTools(tools: RawTool[]): NormalizedTool[] {
+  return tools.map(normalizeTool).filter((t): t is NormalizedTool => !!t);
+}
 
 const COLLECTION_KEYS = [
   "issues",

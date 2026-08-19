@@ -1,0 +1,59 @@
+[
+  {
+    "slug": "ACME_LIST_WIDGETS",
+    "name": "List widgets",
+    "tags": ["widgets"],
+    "inputParameters": {
+      "type": "object",
+      "properties": {
+        "page": { "type": "integer", "description": "page" }
+      },
+      "required": []
+    },
+    "outputParameters": {
+      "type": "object",
+      "properties": {
+        "data": { "$ref": "#/$defs/ListWidgetsResponse" }
+      },
+      "$defs": {
+        "User": {
+          "type": "object",
+          "properties": {
+            "id": { "type": "integer", "description": "User id" }
+          }
+        },
+        "ListWidgetsResponse": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "Unique identifier of the widget"
+            },
+            "user": { "$ref": "#/$defs/User" }
+          }
+        }
+      }
+    }
+  },
+  {
+    "slug": "ACME_DELETE_WIDGET",
+    "tags": ["widgets"],
+    "inputParameters": {
+      "type": "object",
+      "properties": {
+        "widget_id": {
+          "type": "string",
+          "description": "The ID of the widget to delete"
+        },
+        "owner": { "type": "string", "description": "owner" }
+      },
+      "required": ["widget_id", "owner"]
+    },
+    "outputParameters": {
+      "type": "object",
+      "properties": {
+        "data": { "type": "object" }
+      }
+    }
+  }
+]
