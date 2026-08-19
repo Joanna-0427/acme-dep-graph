@@ -18,6 +18,7 @@ import { normalizeTools } from "./extract.ts";
 import { llmFillIn } from "./llm.ts";
 import { heuristicEdges, lookupFallbackEdges, rankAndCap } from "./match.ts";
 import type { Graph, GraphEdge, RawTool } from "./types.ts";
+import { renderGraphHtml } from "./visualize.ts";
 
 const OUT_PATH = "dependency_graph.json";
 
@@ -60,6 +61,7 @@ async function main() {
   }
   const graph = await generate(loadCatalogFromPath(catalogPath));
   writeFileSync(OUT_PATH, JSON.stringify(graph, null, 2), "utf-8");
+  writeFileSync("graph.html", renderGraphHtml(graph), "utf-8");
   console.error(
     `wrote ${graph.nodes.length} nodes, ${graph.edges.length} edges to ${OUT_PATH}`,
   );
