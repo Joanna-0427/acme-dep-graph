@@ -43,13 +43,19 @@ export async function generate(
     t.service ? { id: t.slug, service: t.service } : { id: t.slug },
   );
   const heuristic = rankAndCap(heuristicEdges(normalized), normalized);
-  const lookup = lookupFallbackEdges(normalized, heuristic);
+  const lookup = rankAndCap(
+    lookupFallbackEdges(normalized, heuristic),
+    normalized,
+  );
   const base = uniqueEdges([...heuristic, ...lookup]);
   let llm: GraphEdge[] = [];
   if (options?.llm !== false) {
     llm = await llmFillIn(normalized, base);
   }
-  return { nodes, edges: uniqueEdges([...base, ...llm]) };
+  return {
+    nodes,
+    edges: rankAndCap(uniqueEdges([...base, ...llm]), normalized),
+  };
 }
 
 async function main() {

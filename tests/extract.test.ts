@@ -113,3 +113,28 @@ test("extractInputs returns required and all fields", () => {
   );
   assert.equal(all.length, 2);
 });
+
+test("anyOf unions object branches without following nested refs", () => {
+  const fields = extractPrimaryOutputs({
+    outputParameters: {
+      properties: {
+        data: {
+          anyOf: [
+            { properties: { id: { description: "Widget id" } } },
+            {
+              properties: {
+                id: { description: "Widget id" },
+                name: { description: "Widget name" },
+                owner: { $ref: "#/$defs/User" },
+              },
+            },
+          ],
+        },
+      },
+      $defs: {
+        User: { properties: { id: { description: "User ID" } } },
+      },
+    },
+  });
+  assert.deepEqual(fields.map((f) => f.name).sort(), ["id", "name"]);
+});

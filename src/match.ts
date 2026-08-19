@@ -33,7 +33,7 @@ function namesCompatible(
   if (p === "slug" && (c === `${consumerType}_slug` || c.endsWith("_slug"))) {
     return true;
   }
-  if (p === "sha" && ["sha", "commit_sha", "head_sha"].includes(c)) return true;
+  if (p === "sha" && (c === "sha" || c.endsWith("_sha"))) return true;
   return false;
 }
 

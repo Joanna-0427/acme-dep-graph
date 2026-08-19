@@ -311,3 +311,51 @@ test("gist sha does not fill a commit sha consumer", () => {
   ]);
   assert.equal(edges.length, 0);
 });
+
+test("optional sha is not a consumer", () => {
+  const edges = heuristicEdges([
+    tool({
+      slug: "TK_LIST_COMMITS",
+      primaryOutputs: [
+        { name: "sha", description: "SHA hash identifier of the commit." },
+      ],
+    }),
+    tool({
+      slug: "TK_MERGE",
+      requiredInputs: [{ name: "pull_number", description: "Pull request number" }],
+      allInputs: [
+        { name: "pull_number", description: "Pull request number" },
+        { name: "sha", description: "SHA of the commit" },
+      ],
+    }),
+  ]);
+  assert.ok(!edges.some((e) => e.label === "sha"));
+});
+
+test("tree sha output fills tree_sha", () => {
+  const edges = heuristicEdges([
+    tool({
+      slug: "TK_GET_A_TREE",
+      primaryOutputs: [
+        { name: "sha", description: "The SHA1 checksum ID of the tree object." },
+      ],
+    }),
+    tool({
+      slug: "TK_GET_TREE",
+      requiredInputs: [
+        {
+          name: "tree_sha",
+          description: "The SHA1 checksum ID of the tree object.",
+        },
+      ],
+    }),
+  ]);
+  assert.ok(
+    edges.some(
+      (e) =>
+        e.from === "TK_GET_A_TREE" &&
+        e.to === "TK_GET_TREE" &&
+        e.label === "tree_sha",
+    ),
+  );
+});

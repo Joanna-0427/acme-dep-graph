@@ -146,3 +146,44 @@ test("git tree sha does not supply commit status sha", () => {
 test("graph has edges", () => {
   assert.ok(graph.edges.length > 0);
 });
+
+test("at most 8 producers per consumer field", () => {
+  const counts = new Map<string, number>();
+  for (const edge of graph.edges) {
+    const key = `${edge.to}\0${edge.label ?? ""}`;
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  for (const [key, n] of counts) {
+    assert.ok(n <= 8, `${key.replace("\0", " ")} has ${n}`);
+  }
+});
+
+test("optional merge sha is not an edge", () => {
+  assert.ok(
+    !graph.edges.some(
+      (e) => e.to === "GITHUB_MERGE_A_PULL_REQUEST" && /sha/i.test(e.label ?? ""),
+    ),
+  );
+});
+
+test("comment_id edges do not cross issue and review comment types", () => {
+  const issueFrom = new Set(
+    graph.edges
+      .filter(
+        (e) => e.to === "GITHUB_DELETE_ISSUE_COMMENT" && e.label === "comment_id",
+      )
+      .map((e) => e.from),
+  );
+  const reviewFrom = new Set(
+    graph.edges
+      .filter(
+        (e) =>
+          e.to === "GITHUB_DELETE_A_REVIEW_COMMENT_FOR_A_PULL_REQUEST" &&
+          e.label === "comment_id",
+      )
+      .map((e) => e.from),
+  );
+  for (const from of issueFrom) {
+    assert.ok(!reviewFrom.has(from), from);
+  }
+});
