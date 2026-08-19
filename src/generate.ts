@@ -4,78 +4,75 @@
  * How we run it:
  *   - The path to a toolkit's catalog JSON is passed as a CLI ARGUMENT, e.g.
  *     `node --import tsx src/generate.ts path/to/catalog.json`. We append it as the last
- *     argument, so reading the final argv entry works whatever else your command carries.
+ *     argument, so reading the last argv entry works whatever else your command carries.
  *   - Write your graph to `dependency_graph.json` in the working directory.
  *   - For LLM access, the OpenAI SDK reads OPENAI_API_KEY / OPENAI_BASE_URL from the
  *     environment (set from your assessment page's AI credentials; the same are provided
  *     when we run your generator). Use an OpenRouter model id such as `openai/gpt-4o`.
- *
- * This is a SKELETON. Replace the inference in generate() with your own approach. Do not
- * hardcode a toolkit's relations: your node ids must be slugs from the catalog you are
- * handed, and your output must change when the input changes.
  */
-import { readFileSync, writeFileSync } from "fs";
+import { writeFileSync } from "fs";
+import { pathToFileURL } from "url";
+import { loadCatalogFromPath } from "./catalog.ts";
+import { loadEnv } from "./env.ts";
+import { normalizeTools } from "./extract.ts";
+import { heuristicEdges, lookupFallbackEdges, rankAndCap } from "./match.ts";
+import type { Graph, GraphEdge, RawTool } from "./types.ts";
 
-type Tool = Record<string, any>;
-interface Node {
-  id: string;
-  service?: string;
-}
-interface Edge {
-  from: string;
-  to: string;
-  label?: string;
-}
-interface Graph {
-  nodes: Node[];
-  edges: Edge[];
-}
-
-// The catalog path is the last CLI argument (we append it after your run command).
-const CATALOG_PATH = process.argv.length > 2 ? process.argv[process.argv.length - 1] : undefined;
 const OUT_PATH = "dependency_graph.json";
 
-function loadCatalog(): Tool[] {
-  if (!CATALOG_PATH) {
-    throw new Error("pass the toolkit catalog path as the first argument");
+function uniqueEdges(edges: GraphEdge[]): GraphEdge[] {
+  const seen = new Set<string>();
+  const out: GraphEdge[] = [];
+  for (const edge of edges) {
+    const key = `${edge.from}\0${edge.to}\0${edge.label ?? ""}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(edge);
   }
-  const data = JSON.parse(readFileSync(CATALOG_PATH, "utf-8"));
-  // getRawComposioTools returns a list of tools (or { tools: [...] }).
-  return Array.isArray(data) ? data : (data.tools ?? data.items ?? []);
+  return out;
 }
 
-function slugOf(tool: Tool): string | undefined {
-  return tool.slug ?? tool.name ?? tool.function?.name;
-}
-
-/**
- * TODO: your inference goes here.
- *
- * The baseline below emits every tool as a node and no edges. It passes the
- * "nodes are real slugs" check but scores ~0 on correctness (no dependencies) and
- * will fail the has-edges gate. Replace it: for each tool's required inputs, infer
- * which other tools produce a matching output id/field, and emit those edges.
- * Runtime LLM inference is encouraged. Keep node ids sourced from the catalog you
- * were given.
- */
-async function generate(tools: Tool[]): Promise<Graph> {
-  const nodes: Node[] = tools
-    .map(slugOf)
-    .filter((s): s is string => !!s)
-    .map((id) => ({ id }));
-  const edges: Edge[] = [];
+export async function generate(
+  tools: RawTool[],
+  _options?: { llm?: boolean },
+): Promise<Graph> {
+  const normalized = normalizeTools(tools);
+  const nodes = normalized.map((t) =>
+    t.service ? { id: t.slug, service: t.service } : { id: t.slug },
+  );
+  const heuristic = rankAndCap(heuristicEdges(normalized), normalized);
+  const lookup = lookupFallbackEdges(normalized, heuristic);
+  const edges = uniqueEdges([...heuristic, ...lookup]);
   return { nodes, edges };
 }
 
 async function main() {
-  const graph = await generate(loadCatalog());
+  loadEnv();
+  const catalogPath =
+    process.argv.length > 2 ? process.argv[process.argv.length - 1] : undefined;
+  if (!catalogPath) {
+    throw new Error("pass the toolkit catalog path as the first argument");
+  }
+  const graph = await generate(loadCatalogFromPath(catalogPath));
   writeFileSync(OUT_PATH, JSON.stringify(graph, null, 2), "utf-8");
   console.error(
     `wrote ${graph.nodes.length} nodes, ${graph.edges.length} edges to ${OUT_PATH}`,
   );
 }
 
-main().catch((e) => {
-  console.error(e);
-  process.exit(1);
-});
+function isDirectRun(): boolean {
+  const entry = process.argv[1];
+  if (!entry) return false;
+  try {
+    return import.meta.url === pathToFileURL(entry).href;
+  } catch {
+    return false;
+  }
+}
+
+if (isDirectRun()) {
+  main().catch((e) => {
+    console.error(e);
+    process.exit(1);
+  });
+}
