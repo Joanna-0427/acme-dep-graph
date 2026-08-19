@@ -197,3 +197,13 @@ test("identical ghsa_id names still connect list to get", () => {
     ),
   );
 });
+
+test("camelCase clientId still fills a client_id consumer", () => {
+  assert.ok(
+    hasEdge(
+      "GITHUB_GET_AN_APP",
+      "GITHUB_CREATE_A_SCOPED_ACCESS_TOKEN",
+      "client_id",
+    ),
+  );
+});
