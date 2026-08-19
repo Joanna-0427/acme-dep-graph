@@ -127,3 +127,71 @@ test("migration_id still types as migration on a migrations-tagged tool", () => 
     "migration",
   );
 });
+
+test("gist revision sha is gist, not commit", () => {
+  assert.equal(
+    resourceTypeOf({
+      fieldName: "sha",
+      description:
+        "The SHA identifier of a specific gist revision. This is a 40-character hexadecimal string.",
+      slug: "GITHUB_GET_GIST_REVISION",
+    }),
+    "gist",
+  );
+});
+
+test("tree object sha is tree, not commit", () => {
+  assert.equal(
+    resourceTypeOf({
+      fieldName: "sha",
+      description: "The SHA1 checksum ID of the tree object.",
+      parentDefName: "GitTree",
+      slug: "GITHUB_GET_A_TREE",
+    }),
+    "tree",
+  );
+});
+
+test("commit sha stays commit", () => {
+  assert.equal(
+    resourceTypeOf({
+      fieldName: "sha",
+      description: "SHA hash identifier of the commit.",
+      parentDefName: "Commit",
+      slug: "GITHUB_LIST_COMMITS",
+    }),
+    "commit",
+  );
+});
+
+test("codespace_name is an identifier", () => {
+  assert.equal(
+    isIdentifierField(
+      "codespace_name",
+      "Unique name or identifier of the codespace, typically auto-generated upon creation.",
+    ),
+    true,
+  );
+});
+
+test("clientMutationId is not an identifier", () => {
+  assert.equal(
+    isIdentifierField(
+      "clientMutationId",
+      "A unique identifier for the client performing the mutation.",
+    ),
+    false,
+  );
+});
+
+test("listId on a user-list tool types as user_list", () => {
+  assert.equal(
+    resourceTypeOf({
+      fieldName: "listId",
+      description:
+        "The ID of the user list to delete. This is a GitHub global node ID for the list.",
+      slug: "GITHUB_DELETE_USER_LIST",
+    }),
+    "user_list",
+  );
+});

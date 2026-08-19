@@ -27,6 +27,7 @@ const USER_PROVIDED = new Set([
   "merge_method",
   "q",
   "query",
+  "client_mutation_id",
 ]);
 
 export function snakeName(name: string): string {
@@ -107,22 +108,37 @@ export function resourceTypeOf(args: {
   }
   if (/migration/.test(local) || snake.startsWith("migration")) return "migration";
   if (snake === "file_sha" || /\bblob\b/.test(local)) return "blob";
-  if (
-    snake === "sha" ||
-    snake === "commit_sha" ||
-    snake === "head_sha" ||
-    /\bcommit sha\b/.test(local)
-  ) {
-    return "commit";
+  if (snake === "sha" || snake === "commit_sha" || snake === "head_sha" || /\bsha\b/.test(local)) {
+    if (/\bgist\b/.test(local) || slug.includes("GIST")) return "gist";
+    if (/\btree\b/.test(local)) return "tree";
+    if (/\btag\b/.test(local) && !/\bcommit\b/.test(local)) return "tag";
+    if (
+      snake === "commit_sha" ||
+      snake === "head_sha" ||
+      /\bcommit\b/.test(local) ||
+      slug.includes("COMMIT")
+    ) {
+      return "commit";
+    }
+    if (snake === "sha") return "commit";
   }
 
-  if (snake === "id" || snake === "number") {
+  if (snake === "slug") {
+    if (/team/.test(local) || slug.includes("TEAM")) return "team";
+  }
+
+  if (snake === "id" || snake === "number" || ident) {
     const ofThe =
-      /(?:identifier|id|number) (?:of|for) (?:the )?([a-z0-9 ]+?)(?:\.|$)/i.exec(
+      /(?:identifier|id|number) (?:of|for) (?:the )?([a-z0-9]+(?:\s+[a-z0-9]+)?)/i.exec(
         args.description,
       );
     if (ofThe) {
-      const token = ofThe[1].trim().replace(/\s+/g, "_").replace(/s$/, "");
+      const words: string[] = [];
+      for (const word of ofThe[1].trim().split(/\s+/)) {
+        if (["to", "for", "that", "from", "with"].includes(word)) break;
+        words.push(word);
+      }
+      const token = words.slice(0, 2).join("_");
       if (token) return snakeName(token);
     }
   }

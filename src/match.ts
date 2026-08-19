@@ -30,6 +30,9 @@ function namesCompatible(
     return true;
   }
   if (p === "id" && (c === `${consumerType}_id` || c.endsWith("_id"))) return true;
+  if (p === "slug" && (c === `${consumerType}_slug` || c.endsWith("_slug"))) {
+    return true;
+  }
   if (p === "sha" && ["sha", "commit_sha", "head_sha"].includes(c)) return true;
   return false;
 }
@@ -71,11 +74,40 @@ function isListSearchFind(slug: string): boolean {
   return /_(LIST|SEARCH|FIND)_/.test(slug);
 }
 
+const GENERIC_LOOKUP_TOKENS = new Set([
+  "LIST",
+  "SEARCH",
+  "FIND",
+  "GET",
+  "CREATE",
+  "DELETE",
+  "UPDATE",
+  "ID",
+  "SHA",
+  "NAME",
+  "NUMBER",
+  "REF",
+  "TOKEN",
+  "SLUG",
+  "NODE",
+  "ITEM",
+  "DATA",
+  "URL",
+  "USER",
+  "ORG",
+  "REPO",
+]);
+
 function resourceTokenForLabel(label: string): string {
-  const type = snakeName(label).replace(/_(id|number|sha|token|ref|slug)$/, "");
+  const type = snakeName(label).replace(
+    /_(id|number|sha|token|ref|slug|name)$/,
+    "",
+  );
   if (type === "pull_request" || type === "pull") return "PULL";
   if (type === "issue") return "ISSUE";
-  return type.replace(/_/g, "").toUpperCase();
+  const token = type.replace(/_/g, "").toUpperCase();
+  if (!token || GENERIC_LOOKUP_TOKENS.has(token)) return "";
+  return token;
 }
 
 function scoreEdge(
@@ -125,14 +157,29 @@ export function rankAndCap(
     const sorted = [...candidates].sort(
       (a, b) => scoreEdge(b, toolsBySlug) - scoreEdge(a, toolsBySlug),
     );
-    const kept = sorted.slice(0, 8);
     const token = resourceTokenForLabel(group[0]?.label ?? "");
-    const protectedProducer = candidates.find(
-      (e) => isListSearchFind(e.from) && e.from.includes(token),
+    const sameResource = (edge: GraphEdge) =>
+      !!token && edge.from.includes(token);
+    const lists = sorted.filter((e) => isListSearchFind(e.from) && sameResource(e));
+    const creates = sorted.filter((e) => /_CREATE_/.test(e.from) && sameResource(e));
+    const gets = sorted.filter(
+      (e) => /_GET_/.test(e.from) && sameResource(e) && !isListSearchFind(e.from),
     );
-    if (protectedProducer && !kept.some((e) => e.from === protectedProducer.from)) {
-      kept[kept.length - 1] = protectedProducer;
-    }
+    const kept: GraphEdge[] = [];
+    const take = (pool: GraphEdge[], max: number) => {
+      let n = 0;
+      for (const edge of pool) {
+        if (kept.length >= 8 || n >= max) break;
+        if (kept.some((e) => e.from === edge.from)) continue;
+        kept.push(edge);
+        n += 1;
+      }
+    };
+    const reserve = (creates.length ? 1 : 0) + (gets.length ? 1 : 0);
+    take(lists, Math.max(1, 8 - reserve));
+    take(creates, 1);
+    take(gets, 1);
+    take(sorted, 8 - kept.length);
     out.push(...kept);
   }
   return out;

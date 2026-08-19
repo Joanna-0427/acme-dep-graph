@@ -103,6 +103,46 @@ test("abort migrationId is not fed by issue list", () => {
   }
 });
 
+test("create issue supplies issue_number for comments", () => {
+  assert.ok(
+    hasEdge(
+      "GITHUB_CREATE_AN_ISSUE",
+      "GITHUB_CREATE_AN_ISSUE_COMMENT",
+      "issue_number",
+    ),
+  );
+});
+
+test("listId is not fed by every LIST_ tool", () => {
+  const listIdEdges = graph.edges.filter(
+    (e) =>
+      e.to === "GITHUB_DELETE_USER_LIST" &&
+      (e.label === "listId" || e.label === "list_id"),
+  );
+  assert.ok(listIdEdges.length <= 8, String(listIdEdges.length));
+  assert.ok(
+    !listIdEdges.some((e) => e.from === "GITHUB_LIST_REPOSITORY_ISSUES"),
+  );
+});
+
+test("list teams can supply team_slug", () => {
+  assert.ok(
+    graph.edges.some(
+      (e) => e.from === "GITHUB_LIST_TEAMS" && e.label === "team_slug",
+    ),
+  );
+});
+
+test("commit list does not supply gist revision sha", () => {
+  assert.ok(
+    !hasEdge("GITHUB_LIST_COMMITS", "GITHUB_GET_GIST_REVISION", "sha"),
+  );
+});
+
+test("git tree sha does not supply commit status sha", () => {
+  assert.ok(!hasEdge("GITHUB_GET_A_TREE", "GITHUB_CREATE_A_COMMIT_STATUS", "sha"));
+});
+
 test("graph has edges", () => {
   assert.ok(graph.edges.length > 0);
 });

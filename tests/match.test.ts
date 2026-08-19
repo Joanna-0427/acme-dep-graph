@@ -204,3 +204,110 @@ test("lookup fallback attaches LIST_PULL to unmatched pull_number", () => {
   );
   assert.ok(!lookup.some((e) => e.label === "branch"));
 });
+
+test("lookup does not treat LIST as a resource token for listId", () => {
+  const tools = [
+    tool({
+      slug: "TK_LIST_REPOSITORIES",
+      primaryOutputs: [{ name: "id", description: "Repository id" }],
+    }),
+    tool({
+      slug: "TK_LIST_ISSUES",
+      primaryOutputs: [{ name: "number", description: "Issue number" }],
+    }),
+    tool({
+      slug: "TK_DELETE_USER_LIST",
+      requiredInputs: [
+        { name: "listId", description: "The ID of the user list to delete" },
+      ],
+    }),
+  ];
+  const lookup = lookupFallbackEdges(tools, []);
+  assert.equal(
+    lookup.filter((e) => e.to === "TK_DELETE_USER_LIST" && e.label === "listId")
+      .length,
+    0,
+  );
+});
+
+test("team slug output fills team_slug", () => {
+  const edges = heuristicEdges([
+    tool({
+      slug: "TK_LIST_TEAMS",
+      primaryOutputs: [
+        { name: "slug", description: "URL-friendly team identifier." },
+      ],
+    }),
+    tool({
+      slug: "TK_ADD_TEAM_MEMBER",
+      requiredInputs: [{ name: "team_slug", description: "Team slug" }],
+    }),
+  ]);
+  assert.ok(
+    edges.some(
+      (e) =>
+        e.from === "TK_LIST_TEAMS" &&
+        e.to === "TK_ADD_TEAM_MEMBER" &&
+        e.label === "team_slug",
+    ),
+  );
+});
+
+test("caps keep CREATE of the same resource", () => {
+  const consumer = tool({
+    slug: "TK_CREATE_AN_ISSUE_COMMENT",
+    requiredInputs: [{ name: "issue_number", description: "Issue number" }],
+  });
+  const producers: NormalizedTool[] = [];
+  for (let i = 0; i < 10; i++) {
+    producers.push(
+      tool({
+        slug: `TK_LIST_MISC_ISSUE_${i}`,
+        primaryOutputs: [
+          { name: "number", description: "Issue number within the repository." },
+        ],
+      }),
+    );
+  }
+  producers.push(
+    tool({
+      slug: "TK_CREATE_AN_ISSUE",
+      primaryOutputs: [
+        { name: "number", description: "Issue number within the repository." },
+      ],
+    }),
+  );
+  const capped = rankAndCap(heuristicEdges([...producers, consumer]), [
+    ...producers,
+    consumer,
+  ]);
+  assert.ok(
+    capped.some(
+      (e) =>
+        e.from === "TK_CREATE_AN_ISSUE" &&
+        e.to === "TK_CREATE_AN_ISSUE_COMMENT" &&
+        e.label === "issue_number",
+    ),
+  );
+});
+
+test("gist sha does not fill a commit sha consumer", () => {
+  const edges = heuristicEdges([
+    tool({
+      slug: "TK_LIST_COMMITS",
+      primaryOutputs: [
+        { name: "sha", description: "SHA hash identifier of the commit." },
+      ],
+    }),
+    tool({
+      slug: "TK_GET_GIST_REVISION",
+      requiredInputs: [
+        {
+          name: "sha",
+          description: "The SHA identifier of a specific gist revision.",
+        },
+      ],
+    }),
+  ]);
+  assert.equal(edges.length, 0);
+});
