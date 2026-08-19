@@ -187,3 +187,23 @@ test("comment_id edges do not cross issue and review comment types", () => {
     assert.ok(!reviewFrom.has(from), from);
   }
 });
+
+test("identical ghsa_id names still connect list to get", () => {
+  assert.ok(
+    hasEdge(
+      "GITHUB_LIST_GLOBAL_SECURITY_ADVISORIES",
+      "GITHUB_GET_GLOBAL_SECURITY_ADVISORY",
+      "ghsa_id",
+    ),
+  );
+});
+
+test("camelCase clientId still fills a client_id consumer", () => {
+  assert.ok(
+    hasEdge(
+      "GITHUB_GET_AN_APP",
+      "GITHUB_CREATE_A_SCOPED_ACCESS_TOKEN",
+      "client_id",
+    ),
+  );
+});

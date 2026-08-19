@@ -16,6 +16,8 @@ function fieldType(tool: NormalizedTool, field: Field): string {
   });
 }
 
+const GENERIC_FIELD_NAMES = new Set(["id", "number", "sha", "node_id"]);
+
 function namesCompatible(
   producer: Field,
   consumer: Field,
@@ -37,6 +39,12 @@ function namesCompatible(
   return false;
 }
 
+function specificNamesMatch(producer: Field, consumer: Field): boolean {
+  const p = snakeName(producer.name);
+  const c = snakeName(consumer.name);
+  return p === c && !GENERIC_FIELD_NAMES.has(p);
+}
+
 export function heuristicEdges(tools: NormalizedTool[]): GraphEdge[] {
   const edges: GraphEdge[] = [];
   const seen = new Set<string>();
@@ -49,7 +57,12 @@ export function heuristicEdges(tools: NormalizedTool[]): GraphEdge[] {
         if (producer.slug === consumer.slug) continue;
         for (const output of producer.primaryOutputs) {
           const producerType = fieldType(producer, output);
-          if (producerType !== consumerType) continue;
+          if (
+            producerType !== consumerType &&
+            !specificNamesMatch(output, input)
+          ) {
+            continue;
+          }
           if (!namesCompatible(output, input, producerType, consumerType)) continue;
           const key = `${producer.slug}\0${consumer.slug}\0${input.name}`;
           if (seen.has(key)) continue;

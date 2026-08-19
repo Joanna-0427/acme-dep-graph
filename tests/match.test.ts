@@ -359,3 +359,174 @@ test("tree sha output fills tree_sha", () => {
     ),
   );
 });
+
+test("exact field names match even when inferred types disagree", () => {
+  const edges = heuristicEdges([
+    tool({
+      slug: "TK_LIST_ADVISORIES",
+      primaryOutputs: [
+        { name: "ghsa_id", description: "The GitHub Security Advisory ID" },
+      ],
+    }),
+    tool({
+      slug: "TK_GET_ADVISORY",
+      requiredInputs: [
+        {
+          name: "ghsa_id",
+          description:
+            "The GHSA (GitHub Security Advisory) identifier of the advisory.",
+        },
+      ],
+    }),
+  ]);
+  assert.ok(
+    edges.some(
+      (e) =>
+        e.from === "TK_LIST_ADVISORIES" &&
+        e.to === "TK_GET_ADVISORY" &&
+        e.label === "ghsa_id",
+    ),
+  );
+});
+
+test("matching delivery_id names keep the edge when types disagree", () => {
+  const edges = heuristicEdges([
+    tool({
+      slug: "TK_GET_DELIVERY",
+      primaryOutputs: [
+        {
+          name: "delivery_id",
+          description: "Unique identifier of the webhook delivery.",
+        },
+      ],
+    }),
+    tool({
+      slug: "TK_REDELIVER",
+      requiredInputs: [
+        {
+          name: "delivery_id",
+          description:
+            "The unique identifier of a specific delivery for the webhook.",
+        },
+      ],
+    }),
+  ]);
+  assert.ok(
+    edges.some(
+      (e) =>
+        e.from === "TK_GET_DELIVERY" &&
+        e.to === "TK_REDELIVER" &&
+        e.label === "delivery_id",
+    ),
+  );
+});
+
+test("generic id does not match across types just because both are named id", () => {
+  const edges = heuristicEdges([
+    tool({
+      slug: "TK_GET_ISSUE",
+      primaryOutputs: [
+        { name: "id", description: "Unique identifier for the issue." },
+      ],
+    }),
+    tool({
+      slug: "TK_GET_GRAPHQL_NODE",
+      requiredInputs: [
+        {
+          name: "id",
+          description: "The global node ID of the object to fetch.",
+        },
+      ],
+    }),
+  ]);
+  assert.equal(edges.length, 0);
+});
+
+test("camelCase clientId fills client_id even when inferred types disagree", () => {
+  const edges = heuristicEdges([
+    tool({
+      slug: "TK_GET_APP",
+      primaryOutputs: [
+        { name: "clientId", description: "OAuth application client ID" },
+      ],
+    }),
+    tool({
+      slug: "TK_CREATE_SCOPED_TOKEN",
+      requiredInputs: [
+        { name: "client_id", description: "Client ID of the GitHub App." },
+      ],
+    }),
+  ]);
+  assert.ok(
+    edges.some(
+      (e) =>
+        e.from === "TK_GET_APP" &&
+        e.to === "TK_CREATE_SCOPED_TOKEN" &&
+        e.label === "client_id",
+    ),
+  );
+});
+
+test("generic node_id does not match across types", () => {
+  const edges = heuristicEdges([
+    tool({
+      slug: "TK_GET_ISSUE",
+      primaryOutputs: [
+        { name: "node_id", description: "The node ID of the issue." },
+      ],
+    }),
+    tool({
+      slug: "TK_GET_GRAPHQL_NODE",
+      requiredInputs: [
+        {
+          name: "node_id",
+          description: "The global node ID of the object to fetch.",
+        },
+      ],
+    }),
+  ]);
+  assert.equal(edges.length, 0);
+});
+
+test("generic number does not match across types", () => {
+  const edges = heuristicEdges([
+    tool({
+      slug: "TK_GET_MILESTONE",
+      primaryOutputs: [
+        { name: "number", description: "The number of the milestone." },
+      ],
+    }),
+    tool({
+      slug: "TK_GET_ISSUE",
+      requiredInputs: [
+        { name: "number", description: "Issue number within the repository." },
+      ],
+    }),
+  ]);
+  assert.equal(edges.length, 0);
+});
+
+test("webhook delivery id does not fill delivery_id when names differ", () => {
+  const edges = heuristicEdges([
+    tool({
+      slug: "TK_LIST_DELIVERIES",
+      primaryOutputs: [
+        {
+          name: "id",
+          description: "Unique identifier of the webhook delivery.",
+        },
+      ],
+    }),
+    tool({
+      slug: "TK_GET_DELIVERY",
+      requiredInputs: [
+        {
+          name: "delivery_id",
+          description:
+            "The unique identifier of a specific delivery for the webhook.",
+        },
+      ],
+    }),
+  ]);
+  assert.equal(edges.length, 0);
+});
