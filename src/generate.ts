@@ -15,6 +15,7 @@ import { pathToFileURL } from "url";
 import { loadCatalogFromPath } from "./catalog.ts";
 import { loadEnv } from "./env.ts";
 import { normalizeTools } from "./extract.ts";
+import { llmFillIn } from "./llm.ts";
 import { heuristicEdges, lookupFallbackEdges, rankAndCap } from "./match.ts";
 import type { Graph, GraphEdge, RawTool } from "./types.ts";
 
@@ -34,7 +35,7 @@ function uniqueEdges(edges: GraphEdge[]): GraphEdge[] {
 
 export async function generate(
   tools: RawTool[],
-  _options?: { llm?: boolean },
+  options?: { llm?: boolean },
 ): Promise<Graph> {
   const normalized = normalizeTools(tools);
   const nodes = normalized.map((t) =>
@@ -42,8 +43,12 @@ export async function generate(
   );
   const heuristic = rankAndCap(heuristicEdges(normalized), normalized);
   const lookup = lookupFallbackEdges(normalized, heuristic);
-  const edges = uniqueEdges([...heuristic, ...lookup]);
-  return { nodes, edges };
+  const base = uniqueEdges([...heuristic, ...lookup]);
+  let llm: GraphEdge[] = [];
+  if (options?.llm !== false) {
+    llm = await llmFillIn(normalized, base);
+  }
+  return { nodes, edges: uniqueEdges([...base, ...llm]) };
 }
 
 async function main() {
