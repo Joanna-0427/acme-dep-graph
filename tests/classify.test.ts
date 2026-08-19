@@ -102,3 +102,28 @@ test("pull_number types as pull_request", () => {
     "pull_request",
   );
 });
+
+test("a migrations service tag does not retype unrelated fields", () => {
+  assert.equal(
+    resourceTypeOf({
+      fieldName: "org",
+      description: "The organization name where the repository was unlocked.",
+      parentDefName: "UnlockOrganizationRepositoryResponse",
+      slug: "GITHUB_UNLOCK_ORGANIZATION_REPOSITORY",
+      service: "migrations",
+    }),
+    "unknown",
+  );
+});
+
+test("migration_id still types as migration on a migrations-tagged tool", () => {
+  assert.equal(
+    resourceTypeOf({
+      fieldName: "migration_id",
+      description: "The migration ID that the repository was part of.",
+      slug: "GITHUB_UNLOCK_ORGANIZATION_REPOSITORY",
+      service: "migrations",
+    }),
+    "migration",
+  );
+});

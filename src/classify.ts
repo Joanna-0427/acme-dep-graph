@@ -65,9 +65,13 @@ export function resourceTypeOf(args: {
 }): string {
   const snake = snakeName(args.fieldName);
   const slug = args.slug.toUpperCase();
-  const text = `${args.fieldName} ${args.description} ${args.parentDefName ?? ""} ${args.slug} ${args.service ?? ""}`
+  const local = `${args.fieldName} ${args.description} ${args.parentDefName ?? ""}`
     .toLowerCase()
     .replace(/_/g, " ");
+  const ident =
+    isIdentifierField(args.fieldName, args.description) ||
+    snake === "id" ||
+    snake === "number";
 
   if (snake === "issue_number") return "issue";
   if (snake === "pull_number" || snake === "pull_request_id") return "pull_request";
@@ -75,24 +79,39 @@ export function resourceTypeOf(args: {
   if (snake === "milestone_number") return "milestone";
   if (snake === "migration_id") return "migration";
 
-  if (/issue comment/.test(text) || slug.includes("ISSUE_COMMENT")) return "issue_comment";
-  if (/commit comment/.test(text) || slug.includes("COMMIT_COMMENT")) return "commit_comment";
-  if (/gist comment/.test(text) || /GIST.*COMMENT/.test(slug)) return "gist_comment";
-  if (/review comment/.test(text) || slug.includes("REVIEW_COMMENT")) return "review_comment";
-  if (/discussion comment/.test(text) || slug.includes("DISCUSSION_COMMENT")) {
+  if (/issue comment/.test(local) || (ident && slug.includes("ISSUE_COMMENT"))) {
+    return "issue_comment";
+  }
+  if (/commit comment/.test(local) || (ident && slug.includes("COMMIT_COMMENT"))) {
+    return "commit_comment";
+  }
+  if (/gist comment/.test(local) || (ident && /GIST.*COMMENT/.test(slug))) {
+    return "gist_comment";
+  }
+  if (/review comment/.test(local) || (ident && slug.includes("REVIEW_COMMENT"))) {
+    return "review_comment";
+  }
+  if (
+    /discussion comment/.test(local) ||
+    (ident && slug.includes("DISCUSSION_COMMENT"))
+  ) {
     return "discussion_comment";
   }
-  if (/pull request/.test(text) || slug.includes("PULL_REQUEST")) return "pull_request";
-  if (/milestone/.test(text)) return "milestone";
-  if (/discussion/.test(text) && /number/.test(snake)) return "discussion";
-  if (/\bissue\b/.test(text) || /(?:^|_)ISSUE(?:_|$)/.test(slug)) return "issue";
-  if (/migration/.test(text) || snake.startsWith("migration")) return "migration";
-  if (snake === "file_sha" || /\bblob\b/.test(text)) return "blob";
+  if (/pull request/.test(local) || (ident && slug.includes("PULL_REQUEST"))) {
+    return "pull_request";
+  }
+  if (/milestone/.test(local)) return "milestone";
+  if (/discussion/.test(local) && /number/.test(snake)) return "discussion";
+  if (/\bissue\b/.test(local) || (ident && /(?:^|_)ISSUE(?:_|$)/.test(slug))) {
+    return "issue";
+  }
+  if (/migration/.test(local) || snake.startsWith("migration")) return "migration";
+  if (snake === "file_sha" || /\bblob\b/.test(local)) return "blob";
   if (
     snake === "sha" ||
     snake === "commit_sha" ||
     snake === "head_sha" ||
-    /\bcommit sha\b/.test(text)
+    /\bcommit sha\b/.test(local)
   ) {
     return "commit";
   }
