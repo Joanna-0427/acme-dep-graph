@@ -62,3 +62,113 @@ export function heuristicEdges(tools: NormalizedTool[]): GraphEdge[] {
   }
   return edges;
 }
+
+function bySlugMap(tools: NormalizedTool[]): Map<string, NormalizedTool> {
+  return new Map(tools.map((t) => [t.slug, t]));
+}
+
+function isListSearchFind(slug: string): boolean {
+  return /_(LIST|SEARCH|FIND)_/.test(slug);
+}
+
+function resourceTokenForLabel(label: string): string {
+  const type = snakeName(label).replace(/_(id|number|sha|token|ref|slug)$/, "");
+  if (type === "pull_request" || type === "pull") return "PULL";
+  if (type === "issue") return "ISSUE";
+  return type.replace(/_/g, "").toUpperCase();
+}
+
+function scoreEdge(
+  edge: GraphEdge,
+  toolsBySlug: Map<string, NormalizedTool>,
+): number {
+  const from = toolsBySlug.get(edge.from);
+  const to = toolsBySlug.get(edge.to);
+  if (!from || !to) return 0;
+  let score = 0;
+  if (isListSearchFind(from.slug)) score += 40;
+  else if (/_GET_/.test(from.slug)) score += 25;
+  else if (/_CREATE_/.test(from.slug)) score += 20;
+  if (from.service && from.service === to.service) score += 10;
+  if (!from.isDeprecated) score += 15;
+  const output = from.primaryOutputs.find((f) => {
+    const t = fieldType(from, f);
+    return t === resourceTypeOf({
+      fieldName: edge.label ?? "",
+      description: to.requiredInputs.find((i) => i.name === edge.label)?.description ?? "",
+      slug: to.slug,
+      service: to.service,
+    });
+  });
+  if (output && edge.label && output.description.toLowerCase().includes(snakeName(edge.label).replace(/_/g, " "))) {
+    score += 5;
+  }
+  return score;
+}
+
+export function rankAndCap(
+  edges: GraphEdge[],
+  tools: NormalizedTool[],
+): GraphEdge[] {
+  const toolsBySlug = bySlugMap(tools);
+  const groups = new Map<string, GraphEdge[]>();
+  for (const edge of edges) {
+    const key = `${edge.to}\0${edge.label ?? ""}`;
+    const list = groups.get(key) ?? [];
+    list.push(edge);
+    groups.set(key, list);
+  }
+  const out: GraphEdge[] = [];
+  for (const group of groups.values()) {
+    const live = group.filter((e) => !toolsBySlug.get(e.from)?.isDeprecated);
+    const candidates = live.length ? live : group;
+    const sorted = [...candidates].sort(
+      (a, b) => scoreEdge(b, toolsBySlug) - scoreEdge(a, toolsBySlug),
+    );
+    const kept = sorted.slice(0, 8);
+    const token = resourceTokenForLabel(group[0]?.label ?? "");
+    const protectedProducer = candidates.find(
+      (e) => isListSearchFind(e.from) && e.from.includes(token),
+    );
+    if (protectedProducer && !kept.some((e) => e.from === protectedProducer.from)) {
+      kept[kept.length - 1] = protectedProducer;
+    }
+    out.push(...kept);
+  }
+  return out;
+}
+
+export function lookupFallbackEdges(
+  tools: NormalizedTool[],
+  existing: GraphEdge[],
+): GraphEdge[] {
+  const covered = new Set(
+    existing.map((e) => `${e.to}\0${e.label ?? ""}`),
+  );
+  const extra: GraphEdge[] = [];
+  const seen = new Set<string>();
+  for (const consumer of tools) {
+    for (const input of consumer.requiredInputs) {
+      if (isUserProvided(input.name)) continue;
+      if (!isIdentifierField(input.name, input.description)) continue;
+      const key = `${consumer.slug}\0${input.name}`;
+      if (covered.has(key)) continue;
+      const token = resourceTokenForLabel(input.name);
+      if (!token) continue;
+      for (const producer of tools) {
+        if (producer.slug === consumer.slug) continue;
+        if (!isListSearchFind(producer.slug)) continue;
+        if (!producer.slug.includes(token)) continue;
+        const edgeKey = `${producer.slug}\0${key}`;
+        if (seen.has(edgeKey)) continue;
+        seen.add(edgeKey);
+        extra.push({
+          from: producer.slug,
+          to: consumer.slug,
+          label: input.name,
+        });
+      }
+    }
+  }
+  return extra;
+}

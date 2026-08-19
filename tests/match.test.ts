@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "fs";
 import { parseCatalog } from "../src/catalog.ts";
 import { normalizeTools } from "../src/extract.ts";
-import { heuristicEdges } from "../src/match.ts";
+import { heuristicEdges, lookupFallbackEdges, rankAndCap } from "../src/match.ts";
 import type { NormalizedTool } from "../src/types.ts";
 
 test("tiny ACME catalog lists widgets into delete widget_id", () => {
@@ -121,4 +121,86 @@ test("migrationId consumer matches migration_id producer via snake_case", () => 
         e.label === "migrationId",
     ),
   );
+});
+
+test("caps producers at 8 but keeps a LIST_ producer", () => {
+  const consumer = tool({
+    slug: "TK_COMMENT",
+    requiredInputs: [{ name: "issue_number", description: "Issue number" }],
+  });
+  const producers: NormalizedTool[] = [];
+  for (let i = 0; i < 10; i++) {
+    producers.push(
+      tool({
+        slug: `TK_MISC_ISSUE_${i}`,
+        primaryOutputs: [
+          { name: "number", description: "Issue number within the repository." },
+        ],
+      }),
+    );
+  }
+  producers.push(
+    tool({
+      slug: "TK_LIST_ISSUES",
+      primaryOutputs: [
+        { name: "number", description: "Issue number within the repository." },
+      ],
+    }),
+  );
+  const raw = heuristicEdges([...producers, consumer]);
+  const capped = rankAndCap(raw, [...producers, consumer]);
+  const forComment = capped.filter(
+    (e) => e.to === "TK_COMMENT" && e.label === "issue_number",
+  );
+  assert.ok(forComment.length <= 8);
+  assert.ok(forComment.some((e) => e.from === "TK_LIST_ISSUES"));
+});
+
+test("drops deprecated producer when a live one exists", () => {
+  const tools = [
+    tool({
+      slug: "TK_OLD_LIST_ISSUES",
+      isDeprecated: true,
+      primaryOutputs: [
+        { name: "number", description: "Issue number within the repository." },
+      ],
+    }),
+    tool({
+      slug: "TK_LIST_ISSUES",
+      primaryOutputs: [
+        { name: "number", description: "Issue number within the repository." },
+      ],
+    }),
+    tool({
+      slug: "TK_COMMENT",
+      requiredInputs: [{ name: "issue_number", description: "Issue number" }],
+    }),
+  ];
+  const capped = rankAndCap(heuristicEdges(tools), tools);
+  assert.ok(!capped.some((e) => e.from === "TK_OLD_LIST_ISSUES"));
+  assert.ok(capped.some((e) => e.from === "TK_LIST_ISSUES"));
+});
+
+test("lookup fallback attaches LIST_PULL to unmatched pull_number", () => {
+  const tools = [
+    tool({
+      slug: "TK_LIST_PULL_REQUESTS",
+      primaryOutputs: [{ name: "title", description: "PR title" }],
+    }),
+    tool({
+      slug: "TK_MERGE_A_PULL_REQUEST",
+      requiredInputs: [{ name: "pull_number", description: "Pull request number" }],
+    }),
+  ];
+  const existing = heuristicEdges(tools);
+  const lookup = lookupFallbackEdges(tools, existing);
+  assert.ok(
+    lookup.some(
+      (e) =>
+        e.from === "TK_LIST_PULL_REQUESTS" &&
+        e.to === "TK_MERGE_A_PULL_REQUEST" &&
+        e.label === "pull_number",
+    ),
+  );
+  assert.ok(!lookup.some((e) => e.label === "branch"));
 });
