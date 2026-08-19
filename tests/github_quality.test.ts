@@ -187,3 +187,13 @@ test("comment_id edges do not cross issue and review comment types", () => {
     assert.ok(!reviewFrom.has(from), from);
   }
 });
+
+test("identical ghsa_id names still connect list to get", () => {
+  assert.ok(
+    hasEdge(
+      "GITHUB_LIST_GLOBAL_SECURITY_ADVISORIES",
+      "GITHUB_GET_GLOBAL_SECURITY_ADVISORY",
+      "ghsa_id",
+    ),
+  );
+});
